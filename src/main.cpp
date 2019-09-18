@@ -1,11 +1,3 @@
-/*----------------------------------------------------------------------------*/
-/*                                                                            */
-/*    Module:       main.cpp                                                  */
-/*    Author:       BRYSON_GULLETT                                            */
-/*    Created:      Tue Sep 17 2019                                           */
-/*    Description:  V5 project                                                */
-/*                                                                            */
-/*----------------------------------------------------------------------------*/
 #include "vex.h"
 
 using namespace vex;
@@ -18,25 +10,67 @@ double pController(double currentValue, double targetValue, double p) {
   return error * p;
 }
 
+//********** AUTO DRIVE CODE **********
+
+// Get current distances
+double getCurrentDistanceLeft() {
+  return (leftF1.rotation(vex::deg) + leftB.rotation(vex::deg)) * 3.14159 * 2;
+}
+
+double getCurrentDistanceRight() {
+  return (rightF1.rotation(vex::deg) + rightB.rotation(vex::deg)) * 3.14159 * 2;
+}
+
+double getCurrentDistanceAvg() {
+  return (getCurrentDistanceLeft() + getCurrentDistanceRight()) / 2;
+}
+
+// Get current velocities
+double getCurrentVelocityLeft() {
+  return (leftF1.velocity(vex::velocityUnits::rpm) + leftB.velocity(vex::velocityUnits::rpm)) / 2;
+}
+
+double getCurrentVelocityRight() {
+  return (rightF1.velocity(vex::velocityUnits::rpm) + rightB.velocity(vex::velocityUnits::rpm)) / 2;
+}
+
+double getCurrentVelocityAvg() {
+  return (getCurrentVelocityRight() + getCurrentVelocityLeft()) / 2;
+}
+
 // Drive straight specified distance in inches
 void driveDistance(double distance) {
-  double currentDistanceLeft = (leftF1.rotation(vex::deg) + leftB.rotation(vex::deg)) * 3.14159 * 2;
-  double currentDistanceRight = (rightF1.rotation(vex::deg) + rightB.rotation(vex::deg)) * 3.14159 * 2;
-  double currentDistanceAvg = (currentDistanceLeft + currentDistanceRight) / 2;
-
-  double targetDistanceLeft = currentDistanceLeft + distance;
-  double targetDistanceRight = currentDistanceRight + distance;
+  double targetDistanceLeft = getCurrentDistanceLeft() + distance;
+  double targetDistanceRight = getCurrentDistanceRight() + distance;
   double targetDistanceAvg = (targetDistanceLeft + targetDistanceRight) / 2;
 
-  double currentVelocityLeft = (leftF1.velocity(vex::velocityUnits::rpm) + leftB.velocity(vex::velocityUnits::rpm)) / 2;
-  double currentVelocityRight = (rightF1.velocity(vex::velocityUnits::rpm) + rightB.velocity(vex::velocityUnits::rpm)) / 2;
-  double currentVelocityAvg = (currentVelocityRight + currentVelocityLeft) / 2;
+  double distanceToTargetAvg = targetDistanceAvg - getCurrentDistanceAvg();
 
-  double distanceToTargetAvg = targetDistanceAvg - currentDistanceAvg;
+  while((distanceToTargetAvg > 1.0 && distanceToTargetAvg < -1.0) || getCurrentVelocityAvg() > 100) {
+    double outputLeft = pController(getCurrentDistanceLeft(), targetDistanceLeft, 0.1);
+    double outputRight = pController(getCurrentDistanceRight(), targetDistanceRight, 0.1);
 
-  while((distanceToTargetAvg > 1.0 && distanceToTargetAvg < -1.0) || currentVelocityAvg > 100) {
-    
+    if(outputLeft > 1.0) {
+      outputLeft = 1.0;
+    } else if(outputLeft < -1.0) {
+      outputLeft = -1.0;
+    }
+
+    if(outputRight > 1.0) {
+      outputRight = 1.0;
+    } else if(outputRight < -1.0) {
+      outputRight = -1.0;
+    }
+
+    leftF1.spin(vex::fwd,outputLeft, vex::pct);
+    leftF2.spin(vex::fwd,outputLeft, vex::pct);
+    leftB.spin(vex::fwd,outputLeft, vex::pct);
+    rightF1.spin(vex::fwd,outputRight, vex::pct);
+    rightF2.spin(vex::fwd,outputRight, vex::pct);
+    rightB.spin(vex::fwd,outputRight, vex::pct);
   }
+
+  distanceToTargetAvg = targetDistanceAvg - getCurrentDistanceAvg();
 }
 
 int driver(void){
