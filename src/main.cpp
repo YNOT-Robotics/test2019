@@ -74,7 +74,8 @@ void driveDistance(double distance) {
 // Drive inputted distance with inputted acceleration with inputted coast velocity
 // distance is in inches; acceleration is in RPM per minute; coast velocity is in RPM
 void driveDistanceAcceleration(double distance, double acceleration, double coastVelocity) {
-  double motorVelocity = 0;
+  double motorVelocity = 1.0;
+  double scaledOutput = 0.0;
   vex::timer timer;
   timer.clear();
 
@@ -90,14 +91,15 @@ void driveDistanceAcceleration(double distance, double acceleration, double coas
   double trueCurrentVelocityAvg = 0.0;
 
   double error = 0.0;
+  double pScalar = 0.0;
 
-  while(distanceToTargetAvg > 1.0 || distanceToTargetAvg < -1.0) {
+  while(distanceToTargetAvg > 0.01 || distanceToTargetAvg < -0.01) {
 
     // Accumulator to measure velocity over 50ms period
     currentVelocityAvgAccumulator += getCurrentVelocityAvg();
     counter++;
 
-    if (timer.time() % 50 == 0) {
+    if(timer.time() % 50 == 0) {
 
       if(motorVelocity <= coastVelocity) {
         motorVelocity += acceleration * timer.time() * 0.0000166667;
@@ -107,18 +109,38 @@ void driveDistanceAcceleration(double distance, double acceleration, double coas
 
       distanceToTargetAvg = targetLocationAvg - getCurrentDistanceAvg();
 
+      pScalar = pController(getCurrentDistanceAvg(), targetLocationAvg, 0.2);
+
+      if(pScalar > 1.0) {
+        pScalar = 1.0;
+      } else if(pScalar < -1.0) {
+        pScalar = -1.0;
+      }
+
       trueCurrentVelocityAvg = currentVelocityAvgAccumulator / counter;
 
       Brain.Screen.printAt(0, 35, "Calculated Velocity=%lf\n", motorVelocity);
       Brain.Screen.printAt(0, 60, "Measured Velocity=%lf\n", trueCurrentVelocityAvg);
+      Brain.Screen.printAt(0, 85, "Distance To Target=%lf\n", distanceToTargetAvg);
+      Brain.Screen.printAt(0, 110, "P Scalar=%lf\n", pScalar);
+
+      scaledOutput = motorVelocity * pScalar;
+
+      if(scaledOutput < 1.0 && scaledOutput > -1.0) {
+        if(scaledOutput > 0) {
+          scaledOutput = 1.0;
+        } else if(scaledOutput < 0) {
+          scaledOutput = -1.0;
+        }
+      }
 
       // Set velocities
-      leftF1.setVelocity(motorVelocity, vex::rpm);
-      leftF2.setVelocity(motorVelocity, vex::rpm);
-      leftB.setVelocity(motorVelocity, vex::rpm);
-      rightF1.setVelocity(motorVelocity, vex::rpm);
-      rightF2.setVelocity(motorVelocity, vex::rpm);
-      rightB.setVelocity(motorVelocity, vex::rpm);
+      leftF1.setVelocity(motorVelocity * pScalar, vex::rpm);
+      leftF2.setVelocity(motorVelocity * pScalar, vex::rpm);
+      leftB.setVelocity(motorVelocity * pScalar, vex::rpm);
+      rightF1.setVelocity(motorVelocity * pScalar, vex::rpm);
+      rightF2.setVelocity(motorVelocity * pScalar, vex::rpm);
+      rightB.setVelocity(motorVelocity * pScalar, vex::rpm);
 
       // Spin motors
       leftF1.spin(vex::fwd);
@@ -168,7 +190,7 @@ int driver(void){
 
 int main() {
   //acclerateConstant();
-  driveDistanceAcceleration(25.0, 600.0, 75.0);
+  driveDistanceAcceleration(25.0, 1000.0, 75.0);
   //vex::task D = vex::task(driver);
 
   while(true) {
